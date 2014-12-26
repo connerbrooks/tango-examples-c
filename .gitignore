@@ -6,3 +6,6 @@ bin
 gen
 libs
 obj
+
+.DS_Store
+.idea
