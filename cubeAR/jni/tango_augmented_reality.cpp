@@ -213,8 +213,7 @@ bool SetupGraphics() {
   ar_grid->SetRotation(kArGridRotation);
   cube->SetPosition(kCubePosition + world_position);
   cube->SetScale(kCubeScale);
-  plane->SetPosition(kGridPosition + world_position);
-  plane->SetRotation(kArGridRotation);
+  plane->SetPosition(world_position);
   return true;
 }
 

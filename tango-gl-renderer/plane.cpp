@@ -24,16 +24,12 @@ static const char kVertexShader[] = "attribute vec4 vertex;\n"
 
 static const char kFragmentShader[] =
     "void main() {\n"
-    "  gl_FragColor = vec4(0.85f,0.85f,0.85f,1);\n"
+    "  gl_FragColor = vec4(0.0f,0.85f,0.85f,1);\n"
     "}\n";
 
 static const float vertices[] = {
-  	  -5.0f, 0.0f, -5.0f,
-  	  -5.0f, 0.0f, 5.0f,
-  	  5.0f, 0.0f, 5.0f,
-  	  -5.0f, 0.0f, -5.0f,
-  	  -5.0f, 0.0f, 5.0f,
-  	  5.0f, 0.0f, 5.0f
+    -0.5f, 0.5f,  0.5f,  -0.5f, -0.5f, 0.5f,  0.5f,  0.5f,  0.5f,
+    0.5f,  0.5f,  0.5f,  -0.5f, -0.5f, 0.5f,  0.5f,  -0.5f, 0.5f,
 };
 
 Plane::Plane() {
@@ -44,7 +40,7 @@ Plane::Plane() {
   
   uniform_mvp_mat_ = glGetUniformLocation(shader_program_, "mvp");
   attrib_vertices_ = glGetAttribLocation(shader_program_, "vertex");
-  traverse_len_ = 15;
+  traverse_len_ = 18;
 
   // Binding vertex buffer object.
   glGenBuffers(1, &vertex_buffer_);
@@ -75,7 +71,9 @@ void Plane::Render(const glm::mat4& projection_mat,
 
   glEnableVertexAttribArray(attrib_vertices_);
   glVertexAttribPointer(attrib_vertices_, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
+  glDisable(GL_CULL_FACE);
   glDrawArrays(GL_TRIANGLES, 0, buffer_size);
+  glEnable(GL_CULL_FACE);
   GlUtil::CheckGlError("grid glDrawArray()");
   glDisableVertexAttribArray(attrib_vertices_);
   glBindBuffer(GL_ARRAY_BUFFER, 0);
