@@ -14,18 +14,18 @@
  * limitations under the License.
  */
 
-#ifndef TANGO_GL_RENDERER_GRID_H
-#define TANGO_GL_RENDERER_GRID_H
+#ifndef TANGO_GL_RENDERER_PLANE_H
+#define TANGO_GL_RENDERER_PLANE_H
 
 #include "tango-gl-renderer/drawable_object.h"
 #include "tango-gl-renderer/gl_util.h"
 
-class Grid : public DrawableObject {
+class Plane : public DrawableObject {
  public:
-  Grid(float density = 1.0f, int qx = 50, int qy = 50);
-  Grid(const Grid& other) = delete;
-  Grid& operator=(const Grid&) = delete;
-  ~Grid();
+  Plane();
+  Plane(const Grid& other) = delete;
+  Plane& operator=(const Grid&) = delete;
+  ~Plane();
   void Render(const glm::mat4& projection_mat, const glm::mat4& view_mat) const;
 
  private:
@@ -37,4 +37,4 @@ class Grid : public DrawableObject {
   GLuint uniform_mvp_mat_;
 };
 
-#endif  // TANGO_GL_RENDERER_GRID_H
+#endif  // TANGO_GL_RENDERER_PLANE_H

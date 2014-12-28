@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "tango-gl-renderer/grid.h"
+#include "tango-gl-renderer/plane.h"
 
 static const char kVertexShader[] = "attribute vec4 vertex;\n"
     "uniform mat4 mvp;\n"
@@ -27,7 +27,7 @@ static const char kFragmentShader[] =
     "  gl_FragColor = vec4(0.85f,0.85f,0.85f,1);\n"
     "}\n";
 
-Grid::Grid(float density, int qx, int qy) {
+Plane::Plane() {
   shader_program_ = GlUtil::CreateProgram(kVertexShader, kFragmentShader);
   if (!shader_program_) {
     LOGE("Could not create program.");
@@ -53,12 +53,12 @@ Grid::Grid(float density, int qx, int qy) {
   glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
-Grid::~Grid() {
+Plane::~Plane() {
   glDeleteShader(shader_program_);
   delete[] vertices_;
 }
 
-void Grid::Render(const glm::mat4& projection_mat,
+void Plane::Render(const glm::mat4& projection_mat,
                   const glm::mat4& view_mat) const {
   glUseProgram(shader_program_);
 
