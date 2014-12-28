@@ -420,7 +420,7 @@ std::vector<glm::vec3> pick3Points(uint32_t bufferLength, float* buffer) {
 	for (i = 0; i < 3; i++) {
 		int pointIndex = (rand() % bufferLength) * 3;
 		glm::vec3 point = glm::vec3(buffer[pointIndex], buffer[pointIndex+1], buffer[pointIndex+2]);
-		randPoints->push_back(point);	
+		randPoints.push_back(point);	
 	}
 	return randPoints;
 }
@@ -450,12 +450,12 @@ float findStandardDeviation(std::vector<float>* pointDistances) {
 
 	int i;
 	for (auto iter = pointDistances->begin(); iter < pointDistances->end(); iter++)
-		mean = mean + iter;
+		mean += (*iter);
 	
 	mean /= pointDistances->size();
 
 	for (auto iter = pointDistances->begin(); iter < pointDistances->end(); iter++)
-		sumDeviation = sumDeviation + pow(iter - mean, 2);
+		sumDeviation = sumDeviation + pow((*iter) - mean, 2);
 
 	return sqrt(sumDeviation/pointDistances->size());
 }
@@ -488,8 +488,8 @@ bool ransac() {
 	
 		// loop through all point distances and test if they are within the threshold.
 		for (auto iter = dis->begin(); iter < dis->end(); iter++)
-			if (abs(iter) <= t) 
-				s->push_back(iter);
+			if (abs((*iter)) <= t) 
+				s->push_back((*iter));
 		
 		float st = findStandardDeviation(s);
 	
