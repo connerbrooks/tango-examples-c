@@ -27,6 +27,15 @@ static const char kFragmentShader[] =
     "  gl_FragColor = vec4(0.85f,0.85f,0.85f,1);\n"
     "}\n";
 
+static const float vertices[] = {
+  	  -5.0f, 0.0f, -5.0f,
+  	  -5.0f, 0.0f, 5.0f,
+  	  5.0f, 0.0f, 5.0f,
+  	  -5.0f, 0.0f, -5.0f,
+  	  -5.0f, 0.0f, 5.0f,
+  	  5.0f, 0.0f, 5.0f
+};
+
 Plane::Plane() {
   shader_program_ = GlUtil::CreateProgram(kVertexShader, kFragmentShader);
   if (!shader_program_) {
@@ -35,20 +44,12 @@ Plane::Plane() {
   
   uniform_mvp_mat_ = glGetUniformLocation(shader_program_, "mvp");
   attrib_vertices_ = glGetAttribLocation(shader_program_, "vertex");
-
-  vertices_ = {
-  	  -5.0f, 0.0f, -5.0f,
-  	  -5.0f, 0.0f, 5.0f,
-  	  5.0f, 0.0f, 5.0f,
-  	  -5.0f, 0.0f, -5.0f,
-  	  -5.0f, 0.0f, 5.0f,
-  	  5.0f, 0.0f, 5.0f
-  }
+  traverse_len_ = 15;
 
   // Binding vertex buffer object.
   glGenBuffers(1, &vertex_buffer_);
   glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer_);
-  glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * traverse_len_, vertices_,
+  glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * traverse_len_, vertices,
                GL_STATIC_DRAW);
   glBindBuffer(GL_ARRAY_BUFFER, 0);
 }

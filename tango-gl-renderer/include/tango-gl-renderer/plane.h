@@ -23,14 +23,15 @@
 class Plane : public DrawableObject {
  public:
   Plane();
-  Plane(const Grid& other) = delete;
-  Plane& operator=(const Grid&) = delete;
+  Plane(const Plane& other) = delete;
+  Plane& operator=(const Plane&) = delete;
   ~Plane();
   void Render(const glm::mat4& projection_mat, const glm::mat4& view_mat) const;
 
  private:
   float* vertices_;
   GLuint vertex_buffer_;
+  int traverse_len_;
 
   GLuint shader_program_;
   GLuint attrib_vertices_;

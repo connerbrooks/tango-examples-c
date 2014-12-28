@@ -36,6 +36,7 @@ LOCAL_SRC_FILES := jni/tango_augmented_reality.cpp \
                    ../tango-gl-renderer/grid.cpp \
                    ../tango-gl-renderer/trace.cpp \
                    ../tango-gl-renderer/transform.cpp \
+									 ../tango-gl-renderer/plane.cpp \
                    jni/video_overlay.cpp
 LOCAL_C_INCLUDES := ../tango-gl-renderer/include \
                     ../third-party/glm/

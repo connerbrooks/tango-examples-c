@@ -27,6 +27,7 @@
 #include "tango-gl-renderer/gl_util.h"
 #include "tango-gl-renderer/grid.h"
 #include "tango-gl-renderer/trace.h"
+#include "tango-gl-renderer/plane.h"
 
 #include "tango_data.h"
 #include "video_overlay.h"
@@ -55,6 +56,8 @@ Trace *trace;
 
 // AR element cube.
 Cube *cube;
+
+Plane *plane;
 
 // Color camera preview.
 VideoOverlay *video_overlay;
@@ -194,6 +197,7 @@ bool SetupGraphics() {
   trace = new Trace();
   ground = new Grid(1.0f, 10, 10);
   ar_grid = new Grid(0.1f, 6, 4);
+  plane = new Plane();
   cube = new Cube();
   video_overlay = new VideoOverlay();
 
@@ -209,6 +213,8 @@ bool SetupGraphics() {
   ar_grid->SetRotation(kArGridRotation);
   cube->SetPosition(kCubePosition + world_position);
   cube->SetScale(kCubeScale);
+  plane->SetPosition(kGridPosition + world_position);
+  plane->SetRotation(kArGridRotation);
   return true;
 }
 
@@ -283,6 +289,7 @@ bool RenderFrame() {
   }
 
   ground->Render(projection_mat, view_mat);
+  plane->Render(projection_mat, view_mat);
   ar_grid->Render(projection_mat, view_mat);
   cube->Render(projection_mat, view_mat);
   return true;
@@ -372,6 +379,7 @@ void UpdateARElement(int ar_element, int interaction_type) {
   switch (ar_element) {
     case 1:
       ground->Translate(translation);
+      plane->Translate(translation);
       cube->Translate(translation);
       ar_grid->Translate(translation);
       break;
@@ -468,6 +476,7 @@ Java_com_projecttango_experiments_nativeaugmentedreality_TangoJNINative_onDestro
   delete cam;
   delete axis;
   delete ground;
+  delete plane;
   delete ar_grid;
   delete frustum;
   delete trace;
