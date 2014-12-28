@@ -19,7 +19,9 @@
 #include <jni.h>
 #include <string>
 #include <iostream>
-#include <math.h>
+//#include <math.h>
+#include <cmath>
+#include <vector>
 
 #include "tango-gl-renderer/axis.h"
 #include "tango-gl-renderer/camera.h"
@@ -406,10 +408,10 @@ void UpdateARElement(int ar_element, int interaction_type) {
   }
 }
 
-typedef struct Plane {
+typedef struct Plane1 {
 	glm::vec3 point;
 	glm::vec3 normal;
-} Plane;
+} Plane1;
 
 // returns 3 randomly picked points in the point list.
 std::vector<glm::vec3> pick3Points(uint32_t bufferLength, float* buffer) {
@@ -418,13 +420,13 @@ std::vector<glm::vec3> pick3Points(uint32_t bufferLength, float* buffer) {
 	for (i = 0; i < 3; i++) {
 		int pointIndex = (rand() % bufferLength) * 3;
 		glm::vec3 point = glm::vec3(buffer[pointIndex], buffer[pointIndex+1], buffer[pointIndex+2]);
-		randPoints.push_back(point);	
+		randPoints->push_back(point);	
 	}
 	return randPoints;
 }
 
 // creates a plane out of three points.
-void points2Plane(std::vector<glm::vec3> points, Plane* plane) {
+void points2Plane(std::vector<glm::vec3> points, Plane1* plane) {
 	glm::vec3 line1 = points[1] - points[0];
 	glm::vec3 line2 = points[2] - points[0];
 	glm::vec3 normal = glm::cross(line1, line2);
@@ -435,7 +437,7 @@ void points2Plane(std::vector<glm::vec3> points, Plane* plane) {
 }
 
 // finds and returns the distances of all points in the point list to the given plane.
-void dist2Plane(Plane* pl,uint32_t bufferLength, float* pointList, std::vector<float>* distances) {
+void dist2Plane(Plane1* pl,uint32_t bufferLength, float* pointList, std::vector<float>* distances) {
 	int i;
 	for (i = 0; i < bufferLength*3; i+=3) {
 		glm::vec3 point = glm::vec3(pointList[i], pointList[i+1], pointList[i+2]);
@@ -448,12 +450,12 @@ float findStandardDeviation(std::vector<float>* pointDistances) {
 
 	int i;
 	for (auto iter = pointDistances->begin(); iter < pointDistances->end(); iter++)
-		mean += iter;
+		mean = mean + iter;
 	
 	mean /= pointDistances->size();
 
 	for (auto iter = pointDistances->begin(); iter < pointDistances->end(); iter++)
-		sumDeviation += pow(iter - mean, 2);
+		sumDeviation = sumDeviation + pow(iter - mean, 2);
 
 	return sqrt(sumDeviation/pointDistances->size());
 }
@@ -462,7 +464,7 @@ bool ransac() {
 	bool success = false;
 
 	int bestSupport = 0;
-	Plane* bestPlane;	
+	Plane1* bestPlane;	
 	int i = 0; 
 	double bestStd = std::numeric_limits<double>::infinity(); // starts off as infinity.	
 	int forseeableSupport = 20;
@@ -476,7 +478,7 @@ bool ransac() {
 	double N = round(log(1 - alpha)/log(1 - pow((1 - epsilon), 3)));
 
 	while (i <= N) {
-		Plane* pl;
+		Plane1* pl;
 		std::vector<float>* dis;
 		std::vector<float>* s;	
 
@@ -485,14 +487,13 @@ bool ransac() {
 		dist2Plane(pl, bufferLength, buffer, dis); 		// save distances into distances referance.
 	
 		// loop through all point distances and test if they are within the threshold.
-		for (auto iter = dis.begin(); iter < dis.end(); iter++) {
+		for (auto iter = dis->begin(); iter < dis->end(); iter++)
 			if (abs(iter) <= t) 
 				s->push_back(iter);
-		}
 		
 		float st = findStandardDeviation(s);
 	
-		if ((s->size() > bestSupport) || ((s->size() == bestSupport) && (st < bestStd)) {
+		if ((s->size() > bestSupport) || ((s->size() == bestSupport) && (st < bestStd))) {
 			bestSupport = s->size();
 			bestPlane = pl;
 			bestStd = st;
