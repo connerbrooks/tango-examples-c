@@ -19,7 +19,6 @@
 #include <jni.h>
 #include <string>
 #include <iostream>
-//#include <math.h>
 #include <cmath>
 #include <vector>
 
@@ -465,8 +464,10 @@ bool ransac(Plane1& bestPlane) {
 	float bestStd = std::numeric_limits<float>::infinity(); // starts off as infinity.	
 	float t = 1.0f; // tolerance threshold for accuracy of distance of a point to the plane.
 
+  pthread_mutex_lock(&TangoData::GetInstance().xyzij_mutex);
 	int bufferLength = TangoData::GetInstance().depth_buffer_size;
 	float* buffer = TangoData::GetInstance().depth_buffer;
+  pthread_mutex_unlock(&TangoData::GetInstance().xyzij_mutex);
 
 	float alpha = 0.9f; // minimum probability of finding at least one good set of observations in N trials
 	int epsilon = 1 - (forseeableSupport / bufferLength);
