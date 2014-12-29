@@ -34,6 +34,8 @@
 #include "tango_data.h"
 #include "video_overlay.h"
 
+bool firstTimeRenderingPlane = true;
+
 // Render camera's parent transformation.
 // This object is a pivot transformtion for render camera to rotate around.
 Transform* cam_parent_transform;
@@ -59,6 +61,7 @@ Trace *trace;
 // AR element cube.
 Cube *cube;
 
+// AR plane element.
 Plane *plane;
 
 // Color camera preview.
@@ -199,7 +202,6 @@ bool SetupGraphics() {
   trace = new Trace();
   ground = new Grid(1.0f, 10, 10);
   ar_grid = new Grid(0.1f, 6, 4);
-  plane = new Plane();
   cube = new Cube();
   video_overlay = new VideoOverlay();
 
@@ -215,7 +217,6 @@ bool SetupGraphics() {
   ar_grid->SetRotation(kArGridRotation);
   cube->SetPosition(kCubePosition + world_position);
   cube->SetScale(kCubeScale);
-  plane->SetPosition(world_position);
   return true;
 }
 
@@ -230,6 +231,112 @@ void SetupViewport(int w, int h) {
   }
   cam->SetAspectRatio(1.0f / screen_ratio);
 }
+
+
+typedef struct Plane1 {
+	glm::vec3 point;
+	glm::vec3 normal;
+} Plane1;
+
+// returns 3 randomly picked points in the point list.
+std::vector<glm::vec3> pick3Points(uint32_t bufferLength, float* buffer, std::vector<glm::vec3>& randPoints) {
+	int i;
+	for (i = 0; i < 3; i++) {
+		int pointIndex = (rand() % bufferLength) * 3;
+		glm::vec3 point = glm::vec3(buffer[pointIndex], buffer[pointIndex+1], buffer[pointIndex+2]);
+		randPoints.push_back(point);	
+	}
+}
+
+// creates a plane out of three points.
+void points2Plane(std::vector<glm::vec3> points, Plane1& plane) {
+	glm::vec3 line1 = points[1] - points[0];
+	glm::vec3 line2 = points[2] - points[0];
+	glm::vec3 normal = glm::cross(line1, line2);
+	glm::normalize(normal);
+	
+	plane.normal = normal;
+	plane.point = points[0];
+}
+
+// finds and returns the distances of all points in the point list to the given plane.
+void dist2Plane(Plane1 pl,uint32_t bufferLength, float* pointList, std::vector<float>& distances) {
+	int i;
+	for (i = 0; i < bufferLength*3; i+=3) {
+		glm::vec3 point = glm::vec3(pointList[i], pointList[i+1], pointList[i+2]);
+		distances[i/3] = (glm::dot(pl.normal, point) - glm::dot(pl.normal, pl.point))/glm::length(pl.normal);	
+	}
+}
+
+float findStandardDeviation(std::vector<float> pointDistances) {
+	float mean = 0.0f, sumDeviation = 0.0f;
+	int numPoints = pointDistances.size();
+	int i;
+	for (auto iter = pointDistances.begin(); iter < pointDistances.end(); iter++)
+		mean += *iter;
+	
+	mean /= numPoints;
+
+	for (auto iter = pointDistances.begin(); iter < pointDistances.end(); iter++)
+		sumDeviation += (*iter - mean) * (*iter - mean);
+
+	return sqrt(sumDeviation / numPoints);
+}
+
+bool ransac(Plane1& bestPlane) {
+	bool success = false;
+
+	int i = 0, bestSupport = 0, forseeableSupport = 20;
+	float bestStd = std::numeric_limits<float>::infinity(); // starts off as infinity.	
+	float t = 1.0f; // tolerance threshold for accuracy of distance of a point to the plane.
+
+  pthread_mutex_lock(&TangoData::GetInstance().xyzij_mutex);
+	int bufferLength = TangoData::GetInstance().depth_buffer_size;
+	float* buffer = TangoData::GetInstance().depth_buffer;
+  pthread_mutex_unlock(&TangoData::GetInstance().xyzij_mutex);
+
+	float alpha = 0.9f; // minimum probability of finding at least one good set of observations in N trials
+	int epsilon = 1 - (forseeableSupport / bufferLength);
+	float N = round(log(1 - alpha) / log(1 - pow(1 - epsilon, 3)));
+
+	while (i <= N) {
+		std::vector<glm::vec3> j;
+		pick3Points(bufferLength, buffer, j); // save points into j referance.
+		
+		Plane1 pl;
+		points2Plane(j, pl); // save plane into pl referance.
+		
+		std::vector<float> dis;
+		dist2Plane(pl, bufferLength, buffer, dis); // save distances into distances referance.
+		
+		std::vector<float> s;	
+		// loop through all point distances and test if they are within the threshold.
+		for (auto iter = dis.begin(); iter < dis.end(); iter++)
+			if (abs(*iter) <= t) 
+				s.push_back((*iter));
+		
+		float st = findStandardDeviation(s);
+	
+		if ((s.size() > bestSupport) || ((s.size() == bestSupport) && (st < bestStd))) {
+			bestSupport = s.size();
+			bestPlane = pl;
+			bestStd = st;
+			success = true;
+		}
+
+		++i;
+	}
+
+	return success;
+}
+
+
+
+
+
+
+
+
 
 // Render AR elements, frustum and trace with current Color Camera position and
 // rotation
@@ -289,8 +396,35 @@ bool RenderFrame() {
     video_overlay->Render(projection_mat, view_mat);
   }
 
+  // Only runs once.
+  if (firstTimeRenderingPlane) {
+	Plane1 newPlane;
+	if (ransac(newPlane)) {
+		firstTimeRenderingPlane = false;
+		plane = new Plane();
+		plane->SetPosition(newPlane.point); // This information is gathered during ransac operation.
+		
+		glm::vec3 unitUp = glm::vec3(0.0f, 1.0f, 0.0f);
+		glm::vec3 xAxis = glm::cross(unitUp, newPlane.normal);
+		glm::normalize(xAxis);
+
+		glm::vec3 yAxis = glm::cross(newPlane.normal, xAxis);
+		glm::normalize(yAxis);
+
+		glm::mat4 planeRotationMatrix = glm::mat4(glm::vec4(xAxis, 0.0f), 
+		glm::vec4(yAxis, 0.0f), 
+		glm::vec4(newPlane.normal, 0.0f), 
+		glm::vec4(0.0f, 0.0f, 0.0f, 1.0f));
+
+		glm::quat planeQuat = glm::quat_cast(planeRotationMatrix);
+
+		plane->SetRotation(planeQuat);	// This needs to be interpreted from the normal given from the plane.
+
+		plane->Render(projection_mat, view_mat);
+	}
+  }
+
   ground->Render(projection_mat, view_mat);
-  plane->Render(projection_mat, view_mat);
   ar_grid->Render(projection_mat, view_mat);
   cube->Render(projection_mat, view_mat);
   return true;
@@ -405,103 +539,6 @@ void UpdateARElement(int ar_element, int interaction_type) {
       SetCamera(camera_type);
       break;
   }
-}
-
-typedef struct Plane1 {
-	glm::vec3 point;
-	glm::vec3 normal;
-} Plane1;
-
-// returns 3 randomly picked points in the point list.
-std::vector<glm::vec3> pick3Points(uint32_t bufferLength, float* buffer, std::vector<glm::vec3>& randPoints) {
-	int i;
-	for (i = 0; i < 3; i++) {
-		int pointIndex = (rand() % bufferLength) * 3;
-		glm::vec3 point = glm::vec3(buffer[pointIndex], buffer[pointIndex+1], buffer[pointIndex+2]);
-		randPoints.push_back(point);	
-	}
-}
-
-// creates a plane out of three points.
-void points2Plane(std::vector<glm::vec3> points, Plane1& plane) {
-	glm::vec3 line1 = points[1] - points[0];
-	glm::vec3 line2 = points[2] - points[0];
-	glm::vec3 normal = glm::cross(line1, line2);
-	glm::normalize(normal);
-	
-	plane.normal = normal;
-	plane.point = points[0];
-}
-
-// finds and returns the distances of all points in the point list to the given plane.
-void dist2Plane(Plane1 pl,uint32_t bufferLength, float* pointList, std::vector<float>& distances) {
-	int i;
-	for (i = 0; i < bufferLength*3; i+=3) {
-		glm::vec3 point = glm::vec3(pointList[i], pointList[i+1], pointList[i+2]);
-		distances[i/3] = (glm::dot(pl.normal, point) - glm::dot(pl.normal, pl.point))/glm::length(pl.normal);	
-	}
-}
-
-float findStandardDeviation(std::vector<float> pointDistances) {
-	float mean = 0.0f, sumDeviation = 0.0f;
-	int numPoints = pointDistances.size();
-	int i;
-	for (auto iter = pointDistances.begin(); iter < pointDistances.end(); iter++)
-		mean += *iter;
-	
-	mean /= numPoints;
-
-	for (auto iter = pointDistances.begin(); iter < pointDistances.end(); iter++)
-		sumDeviation += (*iter - mean) * (*iter - mean);
-
-	return sqrt(sumDeviation / numPoints);
-}
-
-bool ransac(Plane1& bestPlane) {
-	bool success = false;
-
-	int i = 0, bestSupport = 0, forseeableSupport = 20;
-	float bestStd = std::numeric_limits<float>::infinity(); // starts off as infinity.	
-	float t = 1.0f; // tolerance threshold for accuracy of distance of a point to the plane.
-
-  pthread_mutex_lock(&TangoData::GetInstance().xyzij_mutex);
-	int bufferLength = TangoData::GetInstance().depth_buffer_size;
-	float* buffer = TangoData::GetInstance().depth_buffer;
-  pthread_mutex_unlock(&TangoData::GetInstance().xyzij_mutex);
-
-	float alpha = 0.9f; // minimum probability of finding at least one good set of observations in N trials
-	int epsilon = 1 - (forseeableSupport / bufferLength);
-	float N = round(log(1 - alpha) / log(1 - pow(1 - epsilon, 3)));
-
-	while (i <= N) {
-		std::vector<glm::vec3> j;
-		pick3Points(bufferLength, buffer, j); // save points into j referance.
-		
-		Plane1 pl;
-		points2Plane(j, pl); // save plane into pl referance.
-		
-		std::vector<float> dis;
-		dist2Plane(pl, bufferLength, buffer, dis); // save distances into distances referance.
-		
-		std::vector<float> s;	
-		// loop through all point distances and test if they are within the threshold.
-		for (auto iter = dis.begin(); iter < dis.end(); iter++)
-			if (abs(*iter) <= t) 
-				s.push_back((*iter));
-		
-		float st = findStandardDeviation(s);
-	
-		if ((s.size() > bestSupport) || ((s.size() == bestSupport) && (st < bestStd))) {
-			bestSupport = s.size();
-			bestPlane = pl;
-			bestStd = st;
-			success = true;
-		}
-
-		++i;
-	}
-
-	return success;
 }
 
 #ifdef __cplusplus
