@@ -16,6 +16,29 @@
 LOCAL_PATH:= $(call my-dir)/..
 
 include $(CLEAR_VARS)
+LOCAL_MODULE    := flann 
+LOCAL_SRC_FILES := ../third-party/flann/lib/libflann.so
+include $(PREBUILT_SHARED_LIBRARY)
+
+include $(CLEAR_VARS)
+LOCAL_MODULE := boost_filesystem
+LOCAL_SRC_FILES := ../third-party/boost/lib/libboost_filesystem.a
+LOCAL_EXPORT_C_INCLUDES := ../third-party/boost/include
+LOCAL_STATIC_LIBRARIES := boost_system
+include $(PREBUILT_STATIC_LIBRARY)
+
+include $(CLEAR_VARS)
+LOCAL_MODULE := boost_system
+LOCAL_SRC_FILES := ../third-party/boost/lib/libboost_system.a
+LOCAL_EXPORT_C_INCLUDES := ../third-party/boost/include
+include $(PREBUILT_STATIC_LIBRARY)
+
+include $(CLEAR_VARS)
+LOCAL_MODULE    := pcl_common
+LOCAL_SRC_FILES := ../third-party/pcl/lib/libpcl_common.a
+include $(PREBUILT_STATIC_LIBRARY)
+
+include $(CLEAR_VARS)
 LOCAL_MODULE := libtango-prebuilt
 LOCAL_SRC_FILES := ../tango-service-sdk/libtango_client_api.so
 LOCAL_EXPORT_C_INCLUDES := ../tango-service-sdk/include
@@ -23,7 +46,8 @@ include $(PREBUILT_SHARED_LIBRARY)
 
 include $(CLEAR_VARS)
 LOCAL_MODULE    := libaugmented_reality_jni_example
-LOCAL_SHARED_LIBRARIES := libtango-prebuilt
+LOCAL_SHARED_LIBRARIES := libtango-prebuilt flann
+LOCAL_STATIC_LIBRARIES := pcl_common boost_system
 LOCAL_CFLAGS    := -std=c++11
 LOCAL_SRC_FILES := jni/tango_augmented_reality.cpp \
                    jni/tango_data.cpp \
@@ -39,6 +63,10 @@ LOCAL_SRC_FILES := jni/tango_augmented_reality.cpp \
 									 ../tango-gl-renderer/plane.cpp \
                    jni/video_overlay.cpp
 LOCAL_C_INCLUDES := ../tango-gl-renderer/include \
-                    ../third-party/glm/
+                    ../third-party/glm/ \
+										../third-party/pcl/include/pcl-1.6 \
+										../third-party/eigen \
+										../third-party/flann/include
+
 LOCAL_LDLIBS    := -llog -lGLESv2 -L$(SYSROOT)/usr/lib
 include $(BUILD_SHARED_LIBRARY)

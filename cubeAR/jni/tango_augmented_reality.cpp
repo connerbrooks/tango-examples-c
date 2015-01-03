@@ -29,6 +29,9 @@
 #include "tango-gl-renderer/trace.h"
 #include "tango-gl-renderer/plane.h"
 
+#include <pcl/point_types.h>
+#include <pcl/features/normal_3d.h>
+
 #include "tango_data.h"
 #include "video_overlay.h"
 
@@ -334,6 +337,27 @@ void SetCamera(CameraType camera_index) {
     default:
       break;
   }
+}
+
+void yolo_swag() {
+  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
+
+  pcl::NormalEstimation<pcl::PointXYZ, pcl::Normal> ne;
+  ne.setInputCloud (cloud);
+
+  // Create an empty kdtree representation, and pass it to the normal estimation object.
+  // Its content will be filled inside the object, based on the given input dataset (as no other search surface is given).
+  pcl::search::KdTree<pcl::PointXYZ>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZ> ());
+  ne.setSearchMethod (tree);
+
+  // Output datasets
+  pcl::PointCloud<pcl::Normal>::Ptr cloud_normals (new pcl::PointCloud<pcl::Normal>);
+
+  // Use all neighbors in a sphere of radius 3cm
+  ne.setRadiusSearch (0.03);
+
+  // Compute the features
+  ne.compute (*cloud_normals);
 }
 
 // Reset virtual world, use the current color camera's position as origin.

@@ -9,3 +9,9 @@ obj
 
 .DS_Store
 .idea
+
+boost
+pcl
+flann
+eigen
+
