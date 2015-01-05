@@ -20,7 +20,11 @@ LOCAL_MODULE := lib_normals
 LOCAL_SRC_FILES := ../cuda/lib_normals.a
 include $(PREBUILT_STATIC_LIBRARY)
 
-
+include $(CLEAR_VARS)
+LOCAL_MODULE := libcudart_static 
+LOCAL_SRC_FILES := $(CUDA_TOOLKIT_ROOT)/targets/armv7-linux-androideabi/lib/ 
+LOCAL_SRC_FILES := $(LOCAL_LIB_PATH)/libcudart_static.a 
+include $(PREBUILT_STATIC_LIBRARY)
 
 include $(CLEAR_VARS)
 LOCAL_MODULE := libtango-prebuilt
