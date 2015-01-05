@@ -17,14 +17,15 @@ LOCAL_PATH:= $(call my-dir)/..
 
 include $(CLEAR_VARS)
 LOCAL_MODULE := lib_normals 
-LOCAL_SRC_FILES := ../cuda/lib_normals.a
+LOCAL_SRC_FILES := cuda/lib_normals.a
 include $(PREBUILT_STATIC_LIBRARY)
 
 include $(CLEAR_VARS)
-LOCAL_MODULE := libcudart_static 
-LOCAL_SRC_FILES := $(CUDA_TOOLKIT_ROOT)/targets/armv7-linux-androideabi/lib/ 
-LOCAL_SRC_FILES := $(LOCAL_LIB_PATH)/libcudart_static.a 
+LOCAL_MODULE := libcudart_static
+LOCAL_LIB_PATH += $(CUDA_TOOLKIT_ROOT)/targets/armv7-linux-androideabi/lib/
+LOCAL_SRC_FILES := $(LOCAL_LIB_PATH)/libcudart_static.a
 include $(PREBUILT_STATIC_LIBRARY)
+
 
 include $(CLEAR_VARS)
 LOCAL_MODULE := libtango-prebuilt
@@ -36,7 +37,7 @@ include $(CLEAR_VARS)
 NVPACK := $(NDK_ROOT)/..
 
 LOCAL_MODULE    := libpoint_cloud_jni_example
-LOCAL_STATIC_LIBRARIES := lib_normals
+LOCAL_STATIC_LIBRARIES := lib_normals libcudart_static
 LOCAL_STATIC_LIBRARIES += nv_and_util nv_egl_util nv_glesutil nv_shader nv_file
 LOCAL_SHARED_LIBRARIES := libtango-prebuilt
 LOCAL_CFLAGS    := -std=c++11
@@ -53,9 +54,9 @@ LOCAL_SRC_FILES := jni/tango_data.cpp \
 LOCAL_C_INCLUDES := ../tango-gl-renderer/include \
                     ../third-party/glm/ \
 										$(CUDA_TOOLKIT_ROOT)/targets/armv7-linux-androideabi/include \
-										../cuda
+										cuda
 
-LOCAL_LDLIBS    := -llog -lGLESv2 -L$(SYSROOT)/usr/lib
+LOCAL_LDLIBS    := -llog -lGLESv2 -L$(SYSROOT)/usr/lib -landroid -lEGL
 include $(BUILD_SHARED_LIBRARY)
 
 $(call import-add-path, $(NVPACK)/Samples/TDK_Samples/libs/jni)
