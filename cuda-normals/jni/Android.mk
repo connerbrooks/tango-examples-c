@@ -34,11 +34,13 @@ LOCAL_EXPORT_C_INCLUDES := ../tango-service-sdk/include
 include $(PREBUILT_SHARED_LIBRARY)
 
 include $(CLEAR_VARS)
+
 NVPACK := $(NDK_ROOT)/..
+include $(NVPACK_ROOT)/OpenCV-2.4.8.2-Tegra-sdk/sdk/native/jni/OpenCV-tegra5-static-cuda.mk
 
 LOCAL_MODULE    := libpoint_cloud_jni_example
 LOCAL_STATIC_LIBRARIES := lib_normals libcudart_static
-LOCAL_STATIC_LIBRARIES += nv_and_util nv_egl_util nv_glesutil nv_shader nv_file
+LOCAL_STATIC_LIBRARIES += nv_and_util nv_egl_util nv_glesutil nv_shader nv_file android_native_app_glue
 LOCAL_SHARED_LIBRARIES := libtango-prebuilt
 LOCAL_CFLAGS    := -std=c++11
 LOCAL_SRC_FILES := jni/tango_data.cpp \
@@ -59,6 +61,7 @@ LOCAL_C_INCLUDES := ../tango-gl-renderer/include \
 LOCAL_LDLIBS    := -llog -lGLESv2 -L$(SYSROOT)/usr/lib -landroid -lEGL
 include $(BUILD_SHARED_LIBRARY)
 
+$(call import-module,android/native_app_glue)
 $(call import-add-path, $(NVPACK)/Samples/TDK_Samples/libs/jni)
 
 $(call import-module,nv_and_util)
