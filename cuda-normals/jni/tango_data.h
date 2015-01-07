@@ -18,11 +18,13 @@
 #define POINT_CLOUD_JNI_EXAMPLE_TANGO_DATA_H_
 #define GLM_FORCE_RADIANS
 
+#include <android_native_app_glue.h>
 #include <pthread.h>
 #include <sstream>
 #include <stdlib.h>
 #include <string>
 #include <tango_client_api.h>
+#include <opencv2/flann/flann.hpp>
 #include "tango-gl-renderer/gl_util.h"
 
 const int kMeterToMillimeter = 1000;

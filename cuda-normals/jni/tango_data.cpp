@@ -16,6 +16,7 @@
 
 #include "tango_data.h"
 
+
 static float prev_depth_timestamp = 0.0f;
 
 // Get status string based on the pose status code.
@@ -269,6 +270,39 @@ void TangoData::UpdateXYZijData() {
   if (depth_buffer_size != 0) {
     depth_average_length = total_z / static_cast<float>(depth_buffer_size);
   }
+
+  /* All of our heavy depth computation should be done here
+     Cuda Call should come from here also
+     */
+  
+  // find nearest neighbors
+  int numPoints = depth_buffer_size;
+
+  LOGE("num points %d", depth_buffer_size);
+  
+  // Create matrix from data size of matrix is
+  // num_features x dimensionality (bufferlength x 3) ??
+  cvflann::Matrix<float> depth_matrix(depth_buffer
+      , depth_buffer_size, 3);
+
+  // Create and build index
+  cvflann::Index<cvflann::L2<float> > index(depth_matrix, cvflann::KDTreeIndexParams(4));
+  index.buildIndex();
+
+  int nn = 7;
+  int ranP = rand() % numPoints;
+  cvflann::Matrix<float> query(depth_matrix[ranP], 1, 3);
+  cvflann::Matrix<int> indices(new int[query.rows*nn], query.rows, nn);
+  cvflann::Matrix<float> dists(new float[query.rows*nn], query.rows, nn);
+
+  index.knnSearch(query, indices, dists, nn, cvflann::SearchParams(64));
+
+  LOGE("KNN search, numpoints %d, index %d ", indices.rows, indices[0][0]);
+
+
+  // Calculate K nearest neighbors
+  //cvflann::Index<L2<float> > index(depth_buffer, flann::KDTreeIndexParams(4));
+
 
   // Query pose at the depth frame's timestamp.
   // Note: This function is querying pose from pose buffer inside
