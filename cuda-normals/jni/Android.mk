@@ -26,17 +26,21 @@ LOCAL_LIB_PATH += $(CUDA_TOOLKIT_ROOT)/targets/armv7-linux-androideabi/lib/
 LOCAL_SRC_FILES := $(LOCAL_LIB_PATH)/libcudart_static.a
 include $(PREBUILT_STATIC_LIBRARY)
 
-
 include $(CLEAR_VARS)
 LOCAL_MODULE := libtango-prebuilt
 LOCAL_SRC_FILES := ../tango-service-sdk/libtango_client_api.so
 LOCAL_EXPORT_C_INCLUDES := ../tango-service-sdk/include
 include $(PREBUILT_SHARED_LIBRARY)
 
+
 include $(CLEAR_VARS)
 
+OPENCV_SDK := $(NVPACK_ROOT)/OpenCV-2.4.8.2-Tegra-sdk/sdk/native/jni
+
+OPENCV_LIB_TYPE := STATIC 
+include $(OPENCV_SDK)/OpenCV-tegra3.mk
+
 NVPACK := $(NDK_ROOT)/..
-include $(NVPACK_ROOT)/OpenCV-2.4.8.2-Tegra-sdk/sdk/native/jni/OpenCV-tegra5-static-cuda.mk
 
 LOCAL_MODULE    := libpoint_cloud_jni_example
 LOCAL_STATIC_LIBRARIES := lib_normals libcudart_static
@@ -56,9 +60,10 @@ LOCAL_SRC_FILES := jni/tango_data.cpp \
 LOCAL_C_INCLUDES := ../tango-gl-renderer/include \
                     ../third-party/glm/ \
 										$(CUDA_TOOLKIT_ROOT)/targets/armv7-linux-androideabi/include \
-										cuda
+										cuda \
+										$(OPENCV_SDK)/include
 
-LOCAL_LDLIBS    := -llog -lGLESv2 -L$(SYSROOT)/usr/lib -landroid -lEGL
+LOCAL_LDLIBS    := -lm -llog -lGLESv2 -L$(SYSROOT)/usr/lib -landroid -lEGL
 include $(BUILD_SHARED_LIBRARY)
 
 $(call import-module,android/native_app_glue)
