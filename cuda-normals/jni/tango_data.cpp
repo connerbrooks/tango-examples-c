@@ -319,9 +319,9 @@ void TangoData::UpdateXYZijData() {
     int p1 = indices[i][0]; // nn for curr point
     int p2 = indices[i][1]; // nn for curr point
 
-    glm::vec3 pointI(depth_matrix[i][0], depth_matrix[i][1], depth_matrix[i][2]);
-    glm::vec3 point1(depth_matrix[p1][0], depth_matrix[p1][1], depth_matrix[p1][2]);
-    glm::vec3 point2(depth_matrix[p2][0], depth_matrix[p2][1], depth_matrix[p2][2]);
+    glm::vec3 pointI = glm::vec3(depth_matrix[i][0], depth_matrix[i][1], depth_matrix[i][2]);
+    glm::vec3 point1 = glm::vec3(depth_matrix[p1][0], depth_matrix[p1][1], depth_matrix[p1][2]);
+    glm::vec3 point2 = glm::vec3(depth_matrix[p2][0], depth_matrix[p2][1], depth_matrix[p2][2]);
 
     glm::vec3 v1 = point1 - pointI;
     glm::vec3 v2 = point2 - pointI;
