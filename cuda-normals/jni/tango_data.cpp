@@ -275,34 +275,68 @@ void TangoData::UpdateXYZijData() {
      Cuda Call should come from here also
      */
   
+  // Calculate normals
+  //
+  // 1. find nearest neighbors for each point with flann
+  // 2. Compute normal from neibors
+  // 3. Flip normal towards the viewpoint
+  //
   // find nearest neighbors
   int numPoints = depth_buffer_size;
 
   LOGE("num points %d", depth_buffer_size);
-  
+
   // Create matrix from data size of matrix is
   // num_features x dimensionality (bufferlength x 3) ??
-  cvflann::Matrix<float> depth_matrix(depth_buffer
-      , depth_buffer_size, 3);
+  cvflann::Matrix<float> depth_matrix(depth_buffer, depth_buffer_size, 3);
 
   // Create and build index
   cvflann::Index<cvflann::L2<float> > index(depth_matrix, cvflann::KDTreeIndexParams(4));
   index.buildIndex();
 
-  int nn = 7;
-  int ranP = rand() % numPoints;
-  cvflann::Matrix<float> query(depth_matrix[ranP], 1, 3);
+  int nn = 7; // need to experiment with this value we should only need 2/3 other points
+  // Create query for all points
+  cvflann::Matrix<float> query(depth_buffer, depth_buffer_size, 3);
+
+  // Create arrays to hold arrays and distances to arrays
   cvflann::Matrix<int> indices(new int[query.rows*nn], query.rows, nn);
   cvflann::Matrix<float> dists(new float[query.rows*nn], query.rows, nn);
 
-  index.knnSearch(query, indices, dists, nn, cvflann::SearchParams(64));
+  // Find neighbors for all points
+  index.knnSearch(query, indices, dists, nn, cvflann::SearchParams(128));
 
-  LOGE("KNN search, numpoints %d, index %d ", indices.rows, indices[0][0]);
+  LOGE("KNN search, numpoints %d ", indices.rows);
 
+  // Calculate normal from nearest neighbors
+  //
+  
+  if(!normal_buffer)
+    delete[] normal_buffer;
+  normal_buffer = new float[depth_buffer_size * 3];
 
-  // Calculate K nearest neighbors
-  //cvflann::Index<L2<float> > index(depth_buffer, flann::KDTreeIndexParams(4));
+  int i; 
+  for(i = 0; i < depth_matrix.rows; i++) {
+    int p1 = indices[i][0]; // nn for curr point
+    int p2 = indices[i][1]; // nn for curr point
 
+    glm::vec3 pointI(depth_matrix[i][0], depth_matrix[i][1], depth_matrix[i][2]);
+    glm::vec3 point1(depth_matrix[p1][0], depth_matrix[p1][1], depth_matrix[p1][2]);
+    glm::vec3 point2(depth_matrix[p2][0], depth_matrix[p2][1], depth_matrix[p2][2]);
+
+    glm::vec3 v1 = point1 - pointI;
+    glm::vec3 v2 = point2 - pointI;
+    glm::vec3 norm = glm::cross(v1, v2);
+
+    glm::normalize(norm);
+
+    normal_buffer[i+0] = norm.x;
+    normal_buffer[i+1] = norm.y;
+    normal_buffer[i+2] = norm.z;
+  }
+
+  // flip towards viewport
+  //
+  //
 
   // Query pose at the depth frame's timestamp.
   // Note: This function is querying pose from pose buffer inside
@@ -403,4 +437,5 @@ TangoData::~TangoData() {
   config_ = nullptr;
 
   delete[] depth_buffer;
+  delete[] normal_buffer;
 }
