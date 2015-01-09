@@ -274,6 +274,9 @@ void TangoData::UpdateXYZijData() {
 
 
   // TODO: Move this somewhere that does not affect the UI thread as heavily
+  // TODO: Use ij buffer from tango when available, which will reduce 
+  //        computation on the render thread by a large factor
+  // TODO: Process xyzij in CUDA
   // Calculate normals
   
   // 1. find nearest neighbors for each point with flann
@@ -321,6 +324,10 @@ void TangoData::UpdateXYZijData() {
 
     glm::normalize(norm);
 
+    // flip towards viewport
+    if( glm::dot(pointI, norm) > 0 )
+      norm = -norm;
+
     norm_arr[0] = norm.x;
     norm_arr[1] = norm.y;
     norm_arr[2] = norm.z;
@@ -329,8 +336,6 @@ void TangoData::UpdateXYZijData() {
 
   }
   delete[] norm_arr;
-
-  // TODO: flip towards viewport
 
   // Query pose at the depth frame's timestamp.
   // Note: This function is querying pose from pose buffer inside
