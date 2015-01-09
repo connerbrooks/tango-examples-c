@@ -34,7 +34,7 @@ class Pointcloud {
   /// depth_data_buffer: Pointer to float array contains float triplet of each
   /// vertices in the point cloud.
   void Render(glm::mat4 projection_mat, glm::mat4 view_mat, glm::mat4 model_mat,
-              int depth_buffer_size, float* depth_data_buffer);
+              int depth_buffer_size, float* depth_data_buffer, float* normal_buffer);
  private:
   GLuint vertex_buffers_;
 

@@ -60,7 +60,7 @@ Pointcloud::~Pointcloud() {
 
 void Pointcloud::Render(glm::mat4 projection_mat, glm::mat4 view_mat,
                         glm::mat4 model_mat, int depth_buffer_size,
-                        float *depth_data_buffer) {
+                        float *depth_data_buffer, float *normal_buffer) {
   glUseProgram(shader_program_);
 
   // Lock xyz_ij mutex.
@@ -73,7 +73,11 @@ void Pointcloud::Render(glm::mat4 projection_mat, glm::mat4 view_mat,
   int iter, counter = 0;
   for (iter = 0; iter < depth_buffer_size; iter += 3) {
 	memcpy(normal_data_buffer + counter, depth_data_buffer + iter, 3 * sizeof(float));
-	depth_data_buffer[iter+1] += 0.01;
+	// add normals to value of line to draw increase order of magnitude of vectors
+	// so that they are visible
+	depth_data_buffer[iter+0] += normal_buffer[iter+0] * 100;
+	depth_data_buffer[iter+1] += normal_buffer[iter+1] * 100;
+	depth_data_buffer[iter+2] += normal_buffer[iter+2] * 100;
 	memcpy(normal_data_buffer + 3 + counter, depth_data_buffer + iter, 3 * sizeof(float));
 	counter += 6;
   }
@@ -88,7 +92,6 @@ void Pointcloud::Render(glm::mat4 projection_mat, glm::mat4 view_mat,
   glBindBuffer(GL_ARRAY_BUFFER, 0);
 
   glDrawArrays(GL_LINES, 0, depth_buffer_size);
-  LOGE("gun");
 
   // Unlock xyz_ij mutex.
   pthread_mutex_unlock(&TangoData::GetInstance().xyzij_mutex);

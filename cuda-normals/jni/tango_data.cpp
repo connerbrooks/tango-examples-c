@@ -149,6 +149,7 @@ bool TangoData::SetConfig() {
   // max_vertex_count is the vertices count, max_vertex_count*3 is
   // the actual float buffer size.
   depth_buffer = new float[3 * max_vertex_count];
+  normal_buffer = new float[max_vertex_count * 3];
 
   return true;
 }
@@ -271,20 +272,16 @@ void TangoData::UpdateXYZijData() {
     depth_average_length = total_z / static_cast<float>(depth_buffer_size);
   }
 
-  /* All of our heavy depth computation should be done here
-     Cuda Call should come from here also
-     */
-  
+
+  // TODO: Move this somewhere that does not affect the UI thread as heavily
   // Calculate normals
-  //
+  
   // 1. find nearest neighbors for each point with flann
   // 2. Compute normal from neibors
   // 3. Flip normal towards the viewpoint
-  //
-  // find nearest neighbors
-  int numPoints = depth_buffer_size;
 
-  LOGE("num points %d", depth_buffer_size);
+  // Find nearest neighbors with flann
+  int numPoints = depth_buffer_size;
 
   // Create matrix from data size of matrix is
   // num_features x dimensionality (bufferlength x 3) ??
@@ -294,7 +291,7 @@ void TangoData::UpdateXYZijData() {
   cvflann::Index<cvflann::L2<float> > index(depth_matrix, cvflann::KDTreeIndexParams(4));
   index.buildIndex();
 
-  int nn = 7; // need to experiment with this value we should only need 2/3 other points
+  int nn = 4; // need to experiment with this value we should only need 2/3 other points
   // Create query for all points
   cvflann::Matrix<float> query(depth_buffer, depth_buffer_size, 3);
 
@@ -305,38 +302,35 @@ void TangoData::UpdateXYZijData() {
   // Find neighbors for all points
   index.knnSearch(query, indices, dists, nn, cvflann::SearchParams(128));
 
-  LOGE("KNN search, numpoints %d ", indices.rows);
-
   // Calculate normal from nearest neighbors
-  //
-  
-  if(!normal_buffer)
-    delete[] normal_buffer;
-  normal_buffer = new float[depth_buffer_size * 3];
-
-  int i; 
+  // TODO: calculate normals with 3D centroid and covariance matrix
+  // TODO: Offload this computation to the GPU (cuda/normals_kerel.cu)
+  float *norm_arr = new float[3] ;
+  int i, p1, p2;
   for(i = 0; i < depth_matrix.rows; i++) {
-    int p1 = indices[i][0]; // nn for curr point
-    int p2 = indices[i][1]; // nn for curr point
+    p1 = indices[i][1]; // nn for curr point
+    p2 = indices[i][2]; // nn for curr point
 
     glm::vec3 pointI = glm::vec3(depth_matrix[i][0], depth_matrix[i][1], depth_matrix[i][2]);
     glm::vec3 point1 = glm::vec3(depth_matrix[p1][0], depth_matrix[p1][1], depth_matrix[p1][2]);
     glm::vec3 point2 = glm::vec3(depth_matrix[p2][0], depth_matrix[p2][1], depth_matrix[p2][2]);
 
-    glm::vec3 v1 = point1 - pointI;
-    glm::vec3 v2 = point2 - pointI;
+    glm::vec3 v1 = glm::vec3(point1 - pointI);
+    glm::vec3 v2 = glm::vec3(point2 - pointI);
     glm::vec3 norm = glm::cross(v1, v2);
 
     glm::normalize(norm);
 
-    normal_buffer[i+0] = norm.x;
-    normal_buffer[i+1] = norm.y;
-    normal_buffer[i+2] = norm.z;
-  }
+    norm_arr[0] = norm.x;
+    norm_arr[1] = norm.y;
+    norm_arr[2] = norm.z;
 
-  // flip towards viewport
-  //
-  //
+    memcpy(normal_buffer + (i * 3), norm_arr, sizeof(float) * 3);
+
+  }
+  delete[] norm_arr;
+
+  // TODO: flip towards viewport
 
   // Query pose at the depth frame's timestamp.
   // Note: This function is querying pose from pose buffer inside
