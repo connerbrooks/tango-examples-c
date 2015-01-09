@@ -23,6 +23,7 @@
 class Pointcloud {
  public:
   Pointcloud();
+  ~Pointcloud();
 
   /// Render function take in the depth buffer and the buffer size, and render
   /// the points base on current transformation.
@@ -40,6 +41,8 @@ class Pointcloud {
   GLuint shader_program_;
   GLuint attrib_vertices_;
   GLuint uniform_mvp_mat_;
+
+  float *normal_data_buffer;
 };
 
 #endif  // POINT_CLOUD_JNI_EXAMPLE_POINTCLOUD_H_

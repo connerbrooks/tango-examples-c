@@ -17,16 +17,17 @@
 #include "pointcloud.h"
 
 static const char kVertexShader[] =
-    "attribute vec4 vertex;\n"
-    "uniform mat4 mvp;\n"
-    "varying vec4 v_color;\n"
-    "void main() {\n"
-    "  gl_PointSize = 5.0;\n"
-    "  gl_Position = mvp*vertex;\n"
-    "  v_color = vertex;\n"
-    "}\n";
+	"attribute vec4 vertex;\n"
+	"uniform mat4 mvp;\n"
+	"varying vec4 v_color;\n"
+	"void main() {\n"
+	"  gl_Position = mvp*vertex;\n"
+	"  v_color = vertex;\n"
+	"}\n";
 
-static const char kFragmentShader[] = "varying vec4 v_color;\n"
+
+static const char kFragmentShader[] = 
+	"varying vec4 v_color;\n"
     "void main() {\n"
     "  gl_FragColor = vec4(v_color);\n"
     "}\n";
@@ -37,7 +38,8 @@ static const glm::mat4 inverse_z_mat = glm::mat4(1.0f, 0.0f, 0.0f, 0.0f,
                                                  0.0f, 0.0f, 0.0f, 1.0f);
 
 Pointcloud::Pointcloud() {
-  glEnable(GL_VERTEX_PROGRAM_POINT_SIZE);
+  //glLineWidth(2.0f);
+
   shader_program_ = GlUtil::CreateProgram(kVertexShader, kFragmentShader);
   if (!shader_program_) {
     LOGE("Could not create program.");
@@ -45,6 +47,15 @@ Pointcloud::Pointcloud() {
   uniform_mvp_mat_ = glGetUniformLocation(shader_program_, "mvp");
   attrib_vertices_ = glGetAttribLocation(shader_program_, "vertex");
   glGenBuffers(1, &vertex_buffers_);
+
+  uint32_t max_vertices = 70000; // magic number for test
+
+  // hold twice the vertices of the depth buffer for lines.
+  normal_data_buffer = new float[6 * max_vertices];
+}
+
+Pointcloud::~Pointcloud() {
+	delete[] normal_data_buffer;
 }
 
 void Pointcloud::Render(glm::mat4 projection_mat, glm::mat4 view_mat,
@@ -59,15 +70,25 @@ void Pointcloud::Render(glm::mat4 projection_mat, glm::mat4 view_mat,
   glm::mat4 mvp_mat = projection_mat * view_mat * model_mat * inverse_z_mat;
   glUniformMatrix4fv(uniform_mvp_mat_, 1, GL_FALSE, glm::value_ptr(mvp_mat));
 
+  int iter, counter = 0;
+  for (iter = 0; iter < depth_buffer_size; iter += 3) {
+	memcpy(normal_data_buffer + counter, depth_data_buffer + iter, 3 * sizeof(float));
+	depth_data_buffer[iter+1] += 0.01;
+	memcpy(normal_data_buffer + 3 + counter, depth_data_buffer + iter, 3 * sizeof(float));
+	counter += 6;
+  }
+
   // Bind vertex buffer.
   glBindBuffer(GL_ARRAY_BUFFER, vertex_buffers_);
-  glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * depth_buffer_size,
-               depth_data_buffer, GL_STATIC_DRAW);
+  glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * depth_buffer_size * 2,
+               normal_data_buffer, GL_STATIC_DRAW);
+
   glEnableVertexAttribArray(attrib_vertices_);
   glVertexAttribPointer(attrib_vertices_, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
   glBindBuffer(GL_ARRAY_BUFFER, 0);
 
-  glDrawArrays(GL_POINTS, 0, 3 * depth_buffer_size);
+  glDrawArrays(GL_LINES, 0, depth_buffer_size);
+  LOGE("gun");
 
   // Unlock xyz_ij mutex.
   pthread_mutex_unlock(&TangoData::GetInstance().xyzij_mutex);
