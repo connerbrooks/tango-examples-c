@@ -20,15 +20,21 @@ namespace gpu_bf
         public:
             Normals();
             ~Normals();
-            // initialization of the textures here
-            void init(int width, int height,const void *pImage);
-            // box filter is applied here
-            void calculateNormals(unsigned int *h_dest, int width, int height, int radius, int iterations, int nthreads);
+            // initialization of buffers 
+            void init(float *h_depth, int *h_indices, int depth_buffer_size, int k);
+            // normals are calculated here
+            void calculateNormals(const float *h_normals, float *h_depth, int *h_indices, int h_depth_buffer_size);
         private:
             // temp array for storing intermediate result
-            unsigned int *d_temp;
-            // final result of applying a box filter
-            unsigned int *d_result;
+            float *d_depth;
+            // final result for normals 
+            float *d_normals;
+            // knn indices
+            int *d_indices;
+            // depth buffer size
+            int depth_buffer_size;
+            int k;
+
     };
 }//namespace gpu_bf
 

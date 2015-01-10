@@ -35,100 +35,33 @@ cudaArray *d_array;
 
 namespace gpu_bf
 {
-    // reads from 32-bit unsigned int array holding 8-bit RGBA
-
-    // convert floating point rgba color to 32-bit integer
-    __device__ unsigned int rgbaFloatToInt(float4 rgba)
+    __global__ void d_compute_normals(const float *h_depth, float *h_normals, int *indices, int h_depth_buffer_size)
     {
-        rgba.x = __saturatef(rgba.x);   // clamp to [0.0, 1.0]
-        rgba.y = __saturatef(rgba.y);
-        rgba.z = __saturatef(rgba.z);
-        rgba.w = __saturatef(rgba.w);
-        return ((unsigned int)(rgba.w * 255.0f) << 24) |
-               ((unsigned int)(rgba.z * 255.0f) << 16) |
-               ((unsigned int)(rgba.y * 255.0f) <<  8) |
-               ((unsigned int)(rgba.x * 255.0f));
-    }
+        int i = blockIdx.x + threadIdx.x;
+        
+        int idx = i * 3;
+        int nnIdx = i * 4; 
 
-    __device__ float4 rgbaIntToFloat(unsigned int c)
-    {
-        float4 rgba;
-        rgba.x = (c & 0xff) * 0.003921568627f;       //  /255.0f;
-        rgba.y = ((c>>8) & 0xff) * 0.003921568627f;  //  /255.0f;
-        rgba.z = ((c>>16) & 0xff) * 0.003921568627f; //  /255.0f;
-        rgba.w = ((c>>24) & 0xff) * 0.003921568627f; //  /255.0f;
-        return rgba;
-    }
+        int n1 = indices[nnIdx + 1];
+        int n2 = indices[nnIdx + 2];
 
-    // row pass using texture memory reads
-    __global__ void d_boxfilter_rgba_x(unsigned int *od, int w, int h, int r)
-    {
-        float scale = 1.0f / (float)((r << 1) + 1);
-        unsigned int y = blockIdx.x*blockDim.x + threadIdx.x;
+        // get points
+        float3 point_interest = make_float3(h_depth[idx], h_depth[idx+1], h_depth[idx+2]);
+        float3 neighbor_1 = make_float3(h_depth[n1], h_depth[n1+1], h_depth[n1+2]);
+        float3 neighbor_2 = make_float3(h_depth[n2], h_depth[n2+1], h_depth[n2+2]);
 
-        // as long as address is always less than height, we do work
-        if (y < h)
-        {
-            float4 t = make_float4(0.0f);
+        float3 vec1 = point_interest - neighbor_1;
+        float3 vec2 = point_interest - neighbor_2;
 
-            for (int x = -r; x <= r; x++)
-            {
-                t += tex2D(rgbaTex, x, y);
-            }
+        float3 vec_norm = cross(vec1, vec2);
 
-            od[y * w] = rgbaFloatToInt(t * scale);
+        if(dot(point_interest, vec_norm) > 0)
+          vec_norm = -vec_norm;
 
-            for (int x = 1; x < w; x++)
-            {
-                t += tex2D(rgbaTex, x + r, y);
-                t -= tex2D(rgbaTex, x - r - 1, y);
-                od[y * w + x] = rgbaFloatToInt(t * scale);
-            }
-        }
-    }
-
-    // column pass using coalesced global memory reads
-    __global__ void d_boxfilter_rgba_y(unsigned int *id, unsigned int *od, int w, int h, int r)
-    {
-        unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
-        id = &id[x];
-        od = &od[x];
-
-        float scale = 1.0f / (float)((r << 1) + 1);
-
-        float4 t;
-        // do left edge
-        t = rgbaIntToFloat(id[0]) * r;
-
-        for (int y = 0; y < (r + 1); y++)
-        {
-            t += rgbaIntToFloat(id[y*w]);
-        }
-
-        od[0] = rgbaFloatToInt(t * scale);
-
-        for (int y = 1; y < (r + 1); y++)
-        {
-            t += rgbaIntToFloat(id[(y + r) * w]);
-            t -= rgbaIntToFloat(id[0]);
-            od[y * w] = rgbaFloatToInt(t * scale);
-        }
-
-        // main loop
-        for (int y = (r + 1); y < (h - r); y++)
-        {
-            t += rgbaIntToFloat(id[(y + r) * w]);
-            t -= rgbaIntToFloat(id[((y - r) * w) - w]);
-            od[y * w] = rgbaFloatToInt(t * scale);
-        }
-
-        // do right edge
-        for (int y = h - r; y < h; y++)
-        {
-            t += rgbaIntToFloat(id[(h - 1) * w]);
-            t -= rgbaIntToFloat(id[((y - r) * w) - w]);
-            od[y * w] = rgbaFloatToInt(t * scale);
-        }
+        h_normals[idx] = vec_norm.x;
+        h_normals[idx + 1] = vec_norm.y;
+        h_normals[idx + 2] = vec_norm.z;
+      
     }
 
     Normals::Normals()
@@ -138,46 +71,48 @@ namespace gpu_bf
     // free the allocated memory
     Normals::~Normals()
     {
-        checkCudaErrors(cudaFree(d_temp));
-        checkCudaErrors(cudaFree(d_result));
+        checkCudaErrors(cudaFree(d_depth));
+        checkCudaErrors(cudaFree(d_normals));
+        checkCudaErrors(cudaFree(d_indices));
     }
 
     // initialize the texture with the input image array
-    void Normals::init(int width, int height,const void *pImage)
+    void Normals::init(float* h_depth, int *h_indices, int depth_buffer_size, int k) 
     {
-        // allocate memory to the intermediate arrays
-        int size = width * height * sizeof(unsigned int);
-        checkCudaErrors(cudaMalloc(&d_temp, size));
-        checkCudaErrors(cudaMalloc(&d_result, size));
+        // allocate memory to the depth, normals, and indicies 
+        int size = depth_buffer_size * sizeof(float);
+        checkCudaErrors(cudaMalloc(&d_depth, size * 3));    // verticies * xyz
+        checkCudaErrors(cudaMalloc(&d_normals, size * 3)); 
+        checkCudaErrors(cudaMalloc(&d_indices, size * k));  // size * number of neighbors
 
-        // copy image data to array
-        cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc(8, 8, 8, 8, cudaChannelFormatKindUnsigned);
-        checkCudaErrors(cudaMallocArray(&d_array, &channelDesc, width, height));
-        checkCudaErrors(cudaMemcpyToArray(d_array, 0, 0, pImage, size, cudaMemcpyHostToDevice));
+
+        // copy depth data to device
+        checkCudaErrors(cudaMemcpy(d_depth, h_depth, size * 3, cudaMemcpyHostToDevice));
+        checkCudaErrors(cudaMemcpy(d_indices, h_indices, size * k, cudaMemcpyHostToDevice));
     }
 
     // apply Box filter
-    void Normals::calculateNormals(unsigned int *h_dest, int width, int height, int radius, int iterations, int nthreads)
+    void Normals::calculateNormals(const float *h_depth, float *h_normals, int *h_indices, int h_depth_buffer_size )
     {
-        // bind texture to the array containing input image data
-        checkCudaErrors(cudaBindTextureToArray(rgbaTex, d_array));
 
-        for (int i=0; i<iterations; i++)
-        {
-            // sync host and start kernel computation timer_kernel
-            checkCudaErrors(cudaDeviceSynchronize());
+        // sync host and start kernel computation timer_kernel
+        checkCudaErrors(cudaDeviceSynchronize());
 
-            // use texture for horizontal pass
-            d_boxfilter_rgba_x<<< height / nthreads, nthreads, 0 >>>(d_temp, width, height, radius);
-            // use array for vertical paas
-            d_boxfilter_rgba_y<<< width / nthreads, nthreads, 0 >>>(d_temp, d_result, width, height, radius);
 
-            // sync host and stop computation timer_kernel
-            checkCudaErrors(cudaDeviceSynchronize());
+        // blocks / threads
+        //dim3 threadsPerBlock(16, 16);
+        //dim3 numBlocks(h_depth_buffer_size / threadsPerBlock.x, h_depth_buffer_size / threadsPerBlock.y);
 
-            // copy back to the host memory
-            checkCudaErrors(cudaMemcpy(h_dest, d_result,  width * height * sizeof(unsigned int), cudaMemcpyDeviceToHost));
-        }
+        int threadsPerBlock = 256;
+        int numBlocks = h_depth_buffer_size / threadsPerBlock;
+
+        // call kernel
+        d_compute_normals<<<numBlocks, threadsPerBlock>>>(d_depth, d_normals, d_indices, h_depth_buffer_size);
+
+        // copy normals buffer back to host
+        checkCudaErrors(cudaMemcpy(h_normals, d_normals,  h_depth_buffer_size * 3  * sizeof(float), cudaMemcpyDeviceToHost));
+
+        checkCudaErrors(cudaDeviceSynchronize());
     }
 }
-#endif // #ifndef _BOXFILTER_KERNEL_CU_
+#endif // #ifndef _NORMALS_KERNEL_CU_
