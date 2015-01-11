@@ -75,10 +75,10 @@ void Pointcloud::Render(glm::mat4 projection_mat, glm::mat4 view_mat,
 	memcpy(normal_data_buffer + counter, depth_data_buffer + iter, 3 * sizeof(float));
 	// add normals to value of line to draw increase order of magnitude of vectors
 	// so that they are visible
-	depth_data_buffer[iter+0] += normal_buffer[iter+0] * 100;
-	depth_data_buffer[iter+1] += normal_buffer[iter+1] * 100;
-	depth_data_buffer[iter+2] += normal_buffer[iter+2] * 100;
-	memcpy(normal_data_buffer + 3 + counter, depth_data_buffer + iter, 3 * sizeof(float));
+	normal_buffer[iter+0] *= 2;
+	normal_buffer[iter+1] *= 2;
+	normal_buffer[iter+2] *= 2;
+	memcpy(normal_data_buffer + 3 + counter, normal_buffer + iter, 3 * sizeof(float));
 	counter += 6;
   }
 
