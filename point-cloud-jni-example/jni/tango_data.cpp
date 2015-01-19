@@ -270,6 +270,20 @@ void TangoData::UpdateXYZijData() {
     depth_average_length = total_z / static_cast<float>(depth_buffer_size);
   }
 
+
+  // find normals pcl
+  //pcl::PointCloud<pcl::PointXYZ> cloud;
+  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZ>);
+  for(int i = 0; i < depth_buffer_size * 3; i+=3)
+    cloud->points.push_back(pcl::PointXYZ (depth_buffer[i], depth_buffer[i+1], depth_buffer[i+2] ));
+
+
+  pcl::NormalEstimation<pcl::PointXYZ, pcl::Normal> ne;
+  ne.setInputCloud(cloud);
+
+
+
+
   // Query pose at the depth frame's timestamp.
   // Note: This function is querying pose from pose buffer inside
   // Tango Service. It will pass out the closest pose according to

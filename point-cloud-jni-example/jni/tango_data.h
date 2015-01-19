@@ -23,6 +23,8 @@
 #include <stdlib.h>
 #include <string>
 #include <tango_client_api.h>
+#include <pcl/point_types.h>
+#include <pcl/features/normal_3d.h>
 #include "tango-gl-renderer/gl_util.h"
 
 const int kMeterToMillimeter = 1000;

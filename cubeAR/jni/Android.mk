@@ -16,33 +16,54 @@
 LOCAL_PATH:= $(call my-dir)/..
 
 include $(CLEAR_VARS)
-LOCAL_MODULE    := flann 
-LOCAL_SRC_FILES := ../third-party/flann/lib/libflann.so
-include $(PREBUILT_SHARED_LIBRARY)
 
-include $(CLEAR_VARS)
-LOCAL_MODULE := boost_filesystem
-LOCAL_SRC_FILES := ../third-party/boost/lib/libboost_filesystem.a
-LOCAL_EXPORT_C_INCLUDES := ../third-party/boost/include
-LOCAL_STATIC_LIBRARIES := boost_system
-include $(PREBUILT_STATIC_LIBRARY)
+#PCL libraries - full support
+PCL_STATIC_LIB_DIR := ../third-party/pcl/pcl-android/lib
+BOOST_STATIC_LIB_DIR := ../third-party/pcl/boost-android/lib
+FLANN_STATIC_LIB_DIR := ../third-party/pcl/flann-android/lib
+					
+PCL_STATIC_LIBRARIES := pcl_common pcl_geometry pcl_kdtree pcl_octree pcl_sample_consensus \
+							pcl_surface pcl_features pcl_io pcl_keypoints pcl_recognition \
+							pcl_search pcl_tracking pcl_filters pcl_io_ply pcl_ml \
+							pcl_registration pcl_segmentation 
+BOOST_STATIC_LIBRARIES := boost_date_time boost_iostreams boost_regex boost_system \
+							boost_filesystem boost_program_options boost_signals \
+							boost_thread
+FLANN_STATIC_LIBRARIES := flann_cpp_s flann_s
 
-include $(CLEAR_VARS)
-LOCAL_MODULE := boost_system
-LOCAL_SRC_FILES := ../third-party/boost/lib/libboost_system.a
-LOCAL_EXPORT_C_INCLUDES := ../third-party/boost/include
-include $(PREBUILT_STATIC_LIBRARY)
+										
+define build_pcl_static
+	include $(CLEAR_VARS)
+	LOCAL_MODULE:=$1
+	LOCAL_SRC_FILES:=$(PCL_STATIC_LIB_DIR)/lib$1.a
+	include $(PREBUILT_STATIC_LIBRARY)
+endef
 
-include $(CLEAR_VARS)
-LOCAL_MODULE    := pcl_common
-LOCAL_SRC_FILES := ../third-party/pcl/lib/libpcl_common.a
-include $(PREBUILT_STATIC_LIBRARY)
+define build_boost_static
+	include $(CLEAR_VARS)
+	LOCAL_MODULE:=$1
+	LOCAL_SRC_FILES:=$(BOOST_STATIC_LIB_DIR)/lib$1.a
+	include $(PREBUILT_STATIC_LIBRARY)
+endef
+
+define build_flann_static
+	include $(CLEAR_VARS)
+	LOCAL_MODULE:=$1
+	LOCAL_SRC_FILES:=$(FLANN_STATIC_LIB_DIR)/lib$1.a
+	include $(PREBUILT_STATIC_LIBRARY)
+endef
+
+$(foreach module,$(PCL_STATIC_LIBRARIES),$(eval $(call build_pcl_static,$(module))))
+$(foreach module,$(BOOST_STATIC_LIBRARIES),$(eval $(call build_boost_static,$(module))))
+$(foreach module,$(FLANN_STATIC_LIBRARIES),$(eval $(call build_flann_static,$(module))))					
+
 
 include $(CLEAR_VARS)
 LOCAL_MODULE := libtango-prebuilt
 LOCAL_SRC_FILES := ../tango-service-sdk/libtango_client_api.so
 LOCAL_EXPORT_C_INCLUDES := ../tango-service-sdk/include
 include $(PREBUILT_SHARED_LIBRARY)
+
 
 include $(CLEAR_VARS)
 LOCAL_MODULE    := libaugmented_reality_jni_example
@@ -64,9 +85,25 @@ LOCAL_SRC_FILES := jni/tango_augmented_reality.cpp \
                    jni/video_overlay.cpp
 LOCAL_C_INCLUDES := ../tango-gl-renderer/include \
                     ../third-party/glm/ \
-										../third-party/pcl/include/pcl-1.6 \
-										../third-party/eigen \
-										../third-party/flann/include
+#pcl library
+LOCAL_LDFLAGS += -L../third-party/pcl/pcl-android/lib \
+				 -L../third-party/pcl/boost-android/lib \
+				 -L../third-party/pcl/flann-android/lib
+				  				
+LOCAL_C_INCLUDES += ../third-party/pcl/pcl-android/include/pcl-1.6 \
+					../third-party/pcl/boost-android/include \
+					../third-party/pcl/eigen \
+					../third-party/pcl/flann-android/include  		
+			
+LOCAL_STATIC_LIBRARIES   += pcl_common pcl_geometry pcl_kdtree pcl_octree pcl_sample_consensus \
+							pcl_surface pcl_features pcl_io pcl_keypoints pcl_recognition \
+							pcl_search pcl_tracking pcl_filters pcl_io_ply pcl_ml \
+							pcl_registration pcl_segmentation 
+							
+LOCAL_STATIC_LIBRARIES   += boost_date_time boost_iostreams boost_regex boost_system \
+							boost_filesystem boost_program_options boost_signals \
+							boost_thread
+
 
 LOCAL_LDLIBS    := -llog -lGLESv2 -L$(SYSROOT)/usr/lib
 include $(BUILD_SHARED_LIBRARY)

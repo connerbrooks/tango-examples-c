@@ -339,6 +339,7 @@ void SetCamera(CameraType camera_index) {
   }
 }
 
+/*
 void yolo_swag() {
   pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
 
@@ -359,6 +360,7 @@ void yolo_swag() {
   // Compute the features
   ne.compute (*cloud_normals);
 }
+*/
 
 // Reset virtual world, use the current color camera's position as origin.
 void ResetAR() {

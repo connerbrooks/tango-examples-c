@@ -14,6 +14,6 @@
 # limitations under the License.
 #
 APP_ABI := armeabi-v7a
-APP_STL := gnustl_static
 C_FLAGS := -fpermissive
-APP_CPPFLAGS += -fexceptions
+APP_CPPFLAGS := -frtti -fexceptions
+APP_STL := gnustl_static
