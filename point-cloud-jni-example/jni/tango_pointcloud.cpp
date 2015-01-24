@@ -247,15 +247,18 @@ bool RenderFrame() {
   axis->SetTransformationMatrix(oc_2_ow_mat_motion);
   axis->Render(cam->GetProjectionMatrix(), cam->GetViewMatrix());
 
-  int size = TangoData::GetInstance().depth_buffer_size;
-  float* depth = TangoData::GetInstance().depth_buffer; 
 
-  for(int i = 0; i < size * 3; i+=3) {
-    glm::vec4 point4 = glm::vec4(depth[i], depth[i+1], depth[i+2], 1);
-    glm::vec4 worldPoint = point4 * oc_2_ow_mat_depth;
-    world_depth_buffer.push_back(worldPoint.x);
-    world_depth_buffer.push_back(worldPoint.y);
-    world_depth_buffer.push_back(worldPoint.z);
+  if (TangoData::GetInstance().is_xyzij_dirty) {
+          int size = TangoData::GetInstance().depth_buffer_size;
+          float* depth = TangoData::GetInstance().depth_buffer;
+
+          for(int i = 0; i < size * 3; i+=3) {
+            glm::vec4 point4 = glm::vec4(depth[i], depth[i+1], depth[i+2], 1);
+            glm::vec4 worldPoint = point4 * oc_2_ow_mat_depth;
+            world_depth_buffer.push_back(worldPoint.x);
+            world_depth_buffer.push_back(worldPoint.y);
+            world_depth_buffer.push_back(worldPoint.z);
+          }
   }
 
   // Render point cloud based on depth buffer and depth frame transformation.
