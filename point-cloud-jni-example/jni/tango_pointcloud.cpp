@@ -66,6 +66,7 @@ float cam_cur_dist;
 
 
 std::vector<float> world_depth_buffer;
+std::vector<float> world_color_buffer;
 
 enum CameraType {
   FIRST_PERSON = 0,
@@ -251,13 +252,14 @@ bool RenderFrame() {
   if (TangoData::GetInstance().is_xyzij_dirty) {
           int size = TangoData::GetInstance().depth_buffer_size;
           float* depth = TangoData::GetInstance().depth_buffer;
-
+		  int color = std::rand() % 255;
           for(int i = 0; i < size * 3; i+=3) {
             glm::vec4 point4 = glm::vec4(depth[i], depth[i+1], depth[i+2], 1);
             glm::vec4 worldPoint = point4 * oc_2_ow_mat_depth;
             world_depth_buffer.push_back(worldPoint.x);
             world_depth_buffer.push_back(worldPoint.y);
             world_depth_buffer.push_back(worldPoint.z);
+			world_color_buffer.push_back(color);
           }
   }
 
@@ -265,7 +267,8 @@ bool RenderFrame() {
   pointcloud->Render(
       cam->GetProjectionMatrix(), cam->GetViewMatrix(), oc_2_ow_mat_depth,
       world_depth_buffer.size(),
-      static_cast<float*>(&world_depth_buffer[0]));
+      static_cast<float*>(&world_depth_buffer[0]), 
+	  static_cast<float*>(&world_color_buffer[0]));
 
   grid->SetPosition(glm::vec3(0.0f, 0.0f, 0.0f) - kHeightOffset);
   // Render grid.
