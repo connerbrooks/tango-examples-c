@@ -21,21 +21,20 @@ namespace gpu_bf
             Normals();
             ~Normals();
             // initialization of buffers 
-            void init(float *h_depth, int *h_indices, int depth_buffer_size, int k);
-            // normals are calculated here
-            void calculateNormals(const float *h_normals, float *h_depth, int *h_indices, int h_depth_buffer_size);
+            void calculateNormals(float *h_depth, float *h_normals, int h_depth_buffer_size, int h_screen_width, int h_screen_height);
         private:
-            // temp array for storing intermediate result
+            // temp array for storing depth information.
             float *d_depth;
-            // final result for normals 
-            float *d_normals;
-            // knn indices
-            int *d_indices;
-            // depth buffer size
-            int depth_buffer_size;
-            int k;
+			float *d_normals;
+   
+	         // stores indices of 3d points in a 2d array with dimensions being their screen coordinates.
+            float **d_ij_matrix;
+			// stores projection matrix to convert buffer coordinates to clip space.
+			float **d_projection_matrix;
 
-    };
+			int d_screen_width;
+			int d_screen_height;
+	};
 }//namespace gpu_bf
 
 #endif

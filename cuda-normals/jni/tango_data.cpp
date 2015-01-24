@@ -15,7 +15,7 @@
 */
 
 #include "tango_data.h"
-
+#include "tango-gl-renderer/camera.h"
 
 static float prev_depth_timestamp = 0.0f;
 
@@ -272,70 +272,8 @@ void TangoData::UpdateXYZijData() {
     depth_average_length = total_z / static_cast<float>(depth_buffer_size);
   }
 
-
-  // TODO: Move this somewhere that does not affect the UI thread as heavily
-  // TODO: Use ij buffer from tango when available, which will reduce 
-  //        computation on the render thread by a large factor
-  // TODO: Process xyzij in CUDA
-  // Calculate normals
-  
-  // 1. find nearest neighbors for each point with flann
-  // 2. Compute normal from neibors
-  // 3. Flip normal towards the viewpoint
-
-  // Find nearest neighbors with flann
-  int numPoints = depth_buffer_size;
-
-  // Create matrix from data size of matrix is
-  // num_features x dimensionality (bufferlength x 3) ??
-  cvflann::Matrix<float> depth_matrix(depth_buffer, depth_buffer_size, 3);
-
-  // Create and build index
-  cvflann::Index<cvflann::L2<float> > index(depth_matrix, cvflann::KDTreeIndexParams(4));
-  index.buildIndex();
-
-  int nn = 4; // need to experiment with this value we should only need 2/3 other points
-  // Create query for all points
-  cvflann::Matrix<float> query(depth_buffer, depth_buffer_size, 3);
-
-  // Create arrays to hold arrays and distances to arrays
-  cvflann::Matrix<int> indices(new int[query.rows*nn], query.rows, nn);
-  cvflann::Matrix<float> dists(new float[query.rows*nn], query.rows, nn);
-
-  // Find neighbors for all points
-  index.knnSearch(query, indices, dists, nn, cvflann::SearchParams(128));
-
-  // Calculate normal from nearest neighbors
-  // TODO: calculate normals with 3D centroid and covariance matrix
-  // TODO: Offload this computation to the GPU (cuda/normals_kerel.cu)
-  float *norm_arr = new float[3] ;
-  int i, p1, p2;
-  for(i = 0; i < depth_matrix.rows; i++) {
-    p1 = indices[i][1]; // nn for curr point
-    p2 = indices[i][2]; // nn for curr point
-
-    glm::vec3 pointI = glm::vec3(depth_matrix[i][0], depth_matrix[i][1], depth_matrix[i][2]);
-    glm::vec3 point1 = glm::vec3(depth_matrix[p1][0], depth_matrix[p1][1], depth_matrix[p1][2]);
-    glm::vec3 point2 = glm::vec3(depth_matrix[p2][0], depth_matrix[p2][1], depth_matrix[p2][2]);
-
-    glm::vec3 v1 = glm::vec3(point1 - pointI);
-    glm::vec3 v2 = glm::vec3(point2 - pointI);
-    glm::vec3 norm = glm::cross(v1, v2);
-
-    glm::normalize(norm);
-
-    // flip towards viewport
-    if( glm::dot(pointI, norm) > 0 )
-      norm = -norm;
-
-    norm_arr[0] = norm.x;
-    norm_arr[1] = norm.y;
-    norm_arr[2] = norm.z;
-
-    memcpy(normal_buffer + (i * 3), norm_arr, sizeof(float) * 3);
-
-  }
-  delete[] norm_arr;
+  // call cuda kernal here. pass in Camera::GetProjectionMatrix to transform 
+  // xyz buffer into clip coordinates.
 
   // Query pose at the depth frame's timestamp.
   // Note: This function is querying pose from pose buffer inside

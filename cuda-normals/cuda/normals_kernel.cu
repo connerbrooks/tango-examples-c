@@ -1,14 +1,3 @@
-////////////////////////////////////////////////////////////////////////////
-//
-// Copyright 1993-2013 NVIDIA Corporation.  All rights reserved.
-//
-// Please refer to the NVIDIA end user license agreement (EULA) associated
-// with this source code for terms and conditions that govern your use of
-// this software. Any use, reproduction, disclosure, or distribution of
-// this software and related documentation outside the terms of the EULA
-// is strictly prohibited.
-//
-////////////////////////////////////////////////////////////////////////////
 
 #ifndef _NORMALS_KERNEL_CU_
 #define _NORMALS_KERNEL_CU_
@@ -29,40 +18,52 @@ inline void __checkCudaErrors(cudaError err, const char *file, const int line)
     }
 }
 
-// texture memory is used to store the image data
-texture<uchar4, 2, cudaReadModeNormalizedFloat> rgbaTex;
-cudaArray *d_array;
-
 namespace gpu_bf
 {
-    __global__ void d_compute_normals(const float *h_depth, float *h_normals, int *indices, int h_depth_buffer_size)
-    {
-        int i = blockIdx.x + threadIdx.x;
-        
-        int idx = i * 3;
-        int nnIdx = i * 4; 
+	__global__ void d_compute_normals(float *d_depth, float *d_normals, float **d_projection_matrix, 
+									  float **d_ij_matrix, int d_screen_width, int d_screen_height) 
+	{
+        int thread_iter = blockIdx.x + threadIdx.x;
+        int vertex_iter = thread_iter * 3;
+		
+		// this 3d coordinate needs to be converted into clip space.	
+		float3 point_of_interest = /* viewProjectionMatrix  * */ make_float3(d_depth[vertex_iter], d_depth[vertex_iter+1], d_depth[vertex_iter+2]);	
 
-        int n1 = indices[nnIdx + 1];
-        int n2 = indices[nnIdx + 2];
+		// adding by 0.5 and casting to an int acts as a rounding function.	
+		int i = (int)((((point_of_interest[0] + 1) / 2) * d_screen_width) + 0.5);
+		int j = (int)((((1 - point_of_interest[1]) / 2) * d_screen_height) + 0.5);
+		
+		// store index of the x component of the 3d point of interest into the ij matrix.
+		d_ij_matrix[i][j] = thread_iter;
 
-        // get points
-        float3 point_interest = make_float3(h_depth[idx], h_depth[idx+1], h_depth[idx+2]);
-        float3 neighbor_1 = make_float3(h_depth[n1], h_depth[n1+1], h_depth[n1+2]);
-        float3 neighbor_2 = make_float3(h_depth[n2], h_depth[n2+1], h_depth[n2+2]);
+		// let all threads fill the ij matrix.	
+		__syncthreads();
 
-        float3 vec1 = point_interest - neighbor_1;
-        float3 vec2 = point_interest - neighbor_2;
+		int neighbor_1_index, neighbor_2_index;
+		float3 neighbor_1, neighbor_2;
+		if (i > 0) {	// don't let it go out of bounds.	
+			neighbor_1_index = d_ij_matrix[i-1][j];	
+			neighbor_1 = make_float3(d_depth[neighbor_1_index], d_depth[neighbor_1_index+1], d_depth[neighbor_1_index+2]);
+		}
+		if (j < d_screen_height) {
+			neighbor_2_index = d_ij_matrix[i][j+1];
+			neighbor_2 = make_float3(d_depth[neighbor_2_index], d_depth[neighbor_2_index+1], d_depth[neighbor_2_index+2]); 
+		}
 
-        float3 vec_norm = cross(vec1, vec2);
+		// do normal calculation.
+		float3 vec1 = neighbor_1 - point_of_interest;	
+		float3 vec2 = neighbor_2 - point_of_interest;	
+		float3 normal = normalize(cross(vec1, vec2));
 
-        if(dot(point_interest, vec_norm) > 0)
-          vec_norm = -vec_norm;
-
-        h_normals[idx] = vec_norm.x;
-        h_normals[idx + 1] = vec_norm.y;
-        h_normals[idx + 2] = vec_norm.z;
-      
-    }
+		// make sure it's facing the viewport.
+		if(dot(point_of_interest, normal) > 0)
+        	normal = -normal;
+	
+		// store the values.
+        d_normals[vertex_iter]     = normal.x;
+        d_normals[vertex_iter + 1] = normal.y;
+        d_normals[vertex_iter + 2] = normal.z;
+	}
 
     Normals::Normals()
     {
@@ -71,48 +72,75 @@ namespace gpu_bf
     // free the allocated memory
     Normals::~Normals()
     {
+		checkCudaErrors(cudaFree(d_screen_width));
+		checkCudaErrors(cudaFree(d_screen_height));
         checkCudaErrors(cudaFree(d_depth));
         checkCudaErrors(cudaFree(d_normals));
-        checkCudaErrors(cudaFree(d_indices));
+
+		for (int i = 0; i < c_screen_width; i++) {
+			checkCudaErrors(cudaFree(d_ij_matrix[i]));
+		}
+        checkCudaErrors(cudaFree(d_ij_matrix));
+
+		for (int j = 0; j < 4; j++) {
+			checkCudaErrors(cudaFree(d_projection_matrix[j]));
+		}
+        checkCudaErrors(cudaFree(d_projection_matrix));
     }
 
-    // initialize the texture with the input image array
-    void Normals::init(float* h_depth, int *h_indices, int depth_buffer_size, int k) 
+    // initialize the ij matrix.
+    void Normals::calculateNormals(float* h_depth, float *h_normals, float **h_projection_matrix, 
+								   int h_depth_buffer_size, int h_screen_width, int h_screen_height) 
     {
-        // allocate memory to the depth, normals, and indicies 
-        int size = depth_buffer_size * sizeof(float);
-        checkCudaErrors(cudaMalloc(&d_depth, size * 3));    // verticies * xyz
-        checkCudaErrors(cudaMalloc(&d_normals, size * 3)); 
-        checkCudaErrors(cudaMalloc(&d_indices, size * k));  // size * number of neighbors
+		////////////////////////////////////////////////////////////////////////////// initialize memory
 
+        int size = h_depth_buffer_size * sizeof(float) * 3;
+        
+		checkCudaErrors(cudaMalloc(&d_normals, size));    // verticies * xyz
+		
+		// allocate memory to the ij matrix.
+		checkCudaErrors(cudaMalloc((void**)&d_ij_matrix, h_screen_width * sizeof(float*)));
+		for (int i = 0; i < h_screen_width; i++) {
+			checkCudaErrors(cudaMalloc(&d_ij_matrix[i], h_screen_height * sizeof(float))); 
+			checkCudaErrors(cudaMemset((void*)d_ij_matrix[i], -1, h_screen_height * sizeof(float));
+		}
 
-        // copy depth data to device
-        checkCudaErrors(cudaMemcpy(d_depth, h_depth, size * 3, cudaMemcpyHostToDevice));
-        checkCudaErrors(cudaMemcpy(d_indices, h_indices, size * k, cudaMemcpyHostToDevice));
-    }
+		// allocate projection matrix memory and copy to cuda matrix.
+		checkCudaErrors(cudaMalloc((void**)&d_projection_matrix, 4 * sizeof(float*)));
+		for (int i = 0; i < 4; i++) {
+			checkCudaErrors(cudaMalloc(&d_projection_matrix[i], 4 * sizeof(float))); 
+			checkCudaErrors(cudaMemcpy(d_projection_matrix[i], &h_projection_matrix[i], 
+							4 * sizeof(float), cudaMemcpyHostToDevice));
+		}
+	
+		// allocate depth memory and copy to cuda array.
+		checkCudaErrors(cudaMalloc(&d_depth, size));    // verticies * xyz
+        checkCudaErrors(cudaMemcpy(d_depth, h_depth, size, cudaMemcpyHostToDevice));
+	
+		// allocate screen width/height memory and copy to cuda array.
+		checkCudaErrors(cudaMalloc((void**)&d_screen_width, sizeof(int)));
+		checkCudaErrors(cudaMemcpy(d_screen_width, &h_screen_width, sizeof(int), cudaMemcpyHostToDevice));
+		
+		checkCudaErrors(cudaMalloc((void**)&d_screen_height, sizeof(int)));
+		checkCudaErrors(cudaMemcpy(d_screen_height, &h_screen_height, sizeof(int), cudaMemcpyHostToDevice));
 
-    // apply Box filter
-    void Normals::calculateNormals(const float *h_depth, float *h_normals, int *h_indices, int h_depth_buffer_size )
-    {
+		//////////////////////////////////////////////////////////////////////////////////// call kernal
 
         // sync host and start kernel computation timer_kernel
-        checkCudaErrors(cudaDeviceSynchronize());
+		checkCudaErrors(cudaDeviceSynchronize());
 
-
-        // blocks / threads
-        //dim3 threadsPerBlock(16, 16);
-        //dim3 numBlocks(h_depth_buffer_size / threadsPerBlock.x, h_depth_buffer_size / threadsPerBlock.y);
-
-        int threadsPerBlock = 256;
+		int threadsPerBlock = 256;
         int numBlocks = h_depth_buffer_size / threadsPerBlock;
+		
+		// call kernel
+		d_compute_normals<<<numBlocks, threadsPerBlock>>>(d_depth, d_normals, d_projection_matrix, 
+														  d_ij_matrix, h_screen_width, h_screen_height);
 
-        // call kernel
-        d_compute_normals<<<numBlocks, threadsPerBlock>>>(d_depth, d_normals, d_indices, h_depth_buffer_size);
+		/////////////////////////////////////////////////////////////////////// copy memory back to host
 
-        // copy normals buffer back to host
-        checkCudaErrors(cudaMemcpy(h_normals, d_normals,  h_depth_buffer_size * 3  * sizeof(float), cudaMemcpyDeviceToHost));
-
-        checkCudaErrors(cudaDeviceSynchronize());
+        checkCudaErrors(cudaMemcpy(h_normals, d_normals, size, cudaMemcpyDeviceToHost));
+        
+		checkCudaErrors(cudaDeviceSynchronize());
     }
 }
 #endif // #ifndef _NORMALS_KERNEL_CU_
