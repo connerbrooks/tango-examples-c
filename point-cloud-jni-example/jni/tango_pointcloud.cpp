@@ -18,6 +18,7 @@
 
 #include <jni.h>
 #include <string>
+#include <vector>
 
 #include "tango-gl-renderer/axis.h"
 #include "tango-gl-renderer/camera.h"
@@ -62,6 +63,9 @@ float cam_cur_angle[2];
 // Double finger touch distance value.
 float cam_start_dist;
 float cam_cur_dist;
+
+
+std::vector<float> world_depth_buffer;
 
 enum CameraType {
   FIRST_PERSON = 0,
@@ -168,6 +172,7 @@ bool SetupGraphics(int w, int h) {
   return true;
 }
 
+
 // GL render loop.
 bool RenderFrame() {
   glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
@@ -242,11 +247,22 @@ bool RenderFrame() {
   axis->SetTransformationMatrix(oc_2_ow_mat_motion);
   axis->Render(cam->GetProjectionMatrix(), cam->GetViewMatrix());
 
+  int size = TangoData::GetInstance().depth_buffer_size;
+  float* depth = TangoData::GetInstance().depth_buffer; 
+
+  for(int i = 0; i < size * 3; i+=3) {
+    glm::vec4 point4 = glm::vec4(depth[i], depth[i+1], depth[i+2], 1);
+    glm::vec4 worldPoint = point4 * oc_2_ow_mat_depth;
+    world_depth_buffer.push_back(worldPoint.x);
+    world_depth_buffer.push_back(worldPoint.y);
+    world_depth_buffer.push_back(worldPoint.z);
+  }
+
   // Render point cloud based on depth buffer and depth frame transformation.
   pointcloud->Render(
       cam->GetProjectionMatrix(), cam->GetViewMatrix(), oc_2_ow_mat_depth,
-      TangoData::GetInstance().depth_buffer_size * 3,
-      static_cast<float*>(TangoData::GetInstance().depth_buffer));
+      world_depth_buffer.size(),
+      static_cast<float*>(&world_depth_buffer[0]));
 
   grid->SetPosition(glm::vec3(0.0f, 0.0f, 0.0f) - kHeightOffset);
   // Render grid.
